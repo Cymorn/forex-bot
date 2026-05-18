@@ -1,19 +1,17 @@
 use tokio_tungstenite::connect_async;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
+use crate::state::AppState;
 
-pub async fn connect_deriv() {
+pub async fn start_market(state: AppState) {
     let url = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
     let (ws_stream, _) = connect_async(url)
         .await
-        .expect("Failed to connect to Deriv");
-
-    println!("Connected to Deriv");
+        .expect("Failed to connect");
 
     let (mut write, mut read) = ws_stream.split();
 
-    // Subscribe to EUR/USD ticks
     let subscribe = json!({
         "ticks": "frxEURUSD",
         "subscribe": 1
@@ -25,14 +23,16 @@ pub async fn connect_deriv() {
     .await
     .unwrap();
 
+    println!("Market stream started");
+
     while let Some(msg) = read.next().await {
-        match msg {
-            Ok(m) => {
-                println!("Market Data: {:?}", m);
-            }
-            Err(e) => {
-                println!("Error: {:?}", e);
-                break;
+        if let Ok(m) = msg {
+            let text = m.to_text().unwrap_or("");
+
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
+                if let Some(price) = v["tick"]["quote"].as_f64() {
+                    state.update_price(price);
+                }
             }
         }
     }

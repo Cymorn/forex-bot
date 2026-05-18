@@ -1,40 +1,45 @@
-mod market;
-mod strategy;
 mod market_deriv;
+mod strategy;
+mod price_buffer;
+mod state;
+mod execution;
+mod signal;
+mod risk_manager;
 
-use strategy::{generate_signal, sma, Signal};
-use std::{thread::sleep, time::Duration};
+use state::AppState;
+use price_buffer::PriceBuffer;
+use strategy::generate_signal;
+use risk_manager::RiskManager;
+use execution::ExecutionEngine;
 
 #[tokio::main]
 async fn main() {
-    market_deriv::connect_deriv().await;
-    
-    let mut prices: Vec<f64> = Vec::new();
+    let state = AppState::new();
+
+    tokio::spawn(market_deriv::start_market(state.clone()));
+
+    let mut buffer = PriceBuffer::new(20);
+
+    let risk = RiskManager::new(5, 50.0, 5);
+    let mut engine = ExecutionEngine::new(risk);
+
+    println!("🚀 Trading bot started...");
 
     loop {
-        let data = market::fetch_rates()
-            .await
-            .expect("Failed to fetch market data");
+        let price = state.get_price();
 
-        let current = data.rates["EUR"];
-
-        prices.push(current);
-
-        if prices.len() > 5 {
-            prices.remove(0);
+        if price == 0.0 {
+            continue;
         }
 
-        let signal = if prices.len() < 5 {
-            Signal::Hold
-        } else {
-            let average = sma(&prices);
-            generate_signal(current, average)
-        };
+        buffer.add(price);
 
-        println!("Price: {}", current);
-        println!("Signal: {:?}", signal);
-        println!("----------------------");
+        let signal = generate_signal(&buffer.prices);
 
-        sleep(Duration::from_secs(1));
+        engine.execute(signal, price).await;
+
+        println!("Price: {}, Signal: {:?}", price, signal);
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }
