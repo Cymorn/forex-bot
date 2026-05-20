@@ -5,7 +5,7 @@ pub fn sma(prices: &Vec<f64>) -> f64 {
     sum / prices.len() as f64
 }
 
-pub fn generate_signal(prices: &Vec<f64>) -> Signal {
+pub fn sma_signal(prices: &Vec<f64>) -> Signal {
     if prices.len() < 5 {
         return Signal::HOLD;
     }

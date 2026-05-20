@@ -15,9 +15,8 @@ impl ExecutionEngine {
     }
 
     pub async fn execute(&mut self, signal: Signal, price: f64) {
-        // 🛑 Risk check first
         if !self.risk.can_trade() {
-            println!("🚫 Trade blocked by risk manager");
+            println!("🚫 Trade blocked (Risk AI: {:?})", self.risk.mode());
             return;
         }
 
@@ -34,9 +33,7 @@ impl ExecutionEngine {
                 self.risk.register_trade();
             }
 
-            Signal::HOLD => {
-                println!("⏸ HOLD - no action");
-            }
+            Signal::HOLD => {}
         }
     }
 }
